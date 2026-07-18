@@ -71,8 +71,11 @@ class CheckRole
                 abort(403, 'Aksi ini tidak diperbolehkan untuk peran Anda.');
             }
 
-            // 4. Block all non-GET requests except profile updates, compare, and logout
+            // 4. Block all non-GET requests except allowed user actions
             if ($method !== 'GET') {
+                $isAllowed = false;
+
+                // Path spesifik yang diperbolehkan
                 $allowedPaths = [
                     'api/profile',
                     'api/profile/photo',
@@ -81,7 +84,16 @@ class CheckRole
                     'logout'
                 ];
 
-                if (!in_array($path, $allowedPaths)) {
+                if (in_array($path, $allowedPaths)) {
+                    $isAllowed = true;
+                }
+
+                // Izinkan pengguna mengelola Watchlist mereka sendiri (POST/PUT/DELETE /watchlist...)
+                if (preg_match('/^watchlist(\/.*)?$/i', $path)) {
+                    $isAllowed = true;
+                }
+
+                if (!$isAllowed) {
                     if ($request->expectsJson() || $request->is('api/*')) {
                         return response()->json([
                             'success' => false,

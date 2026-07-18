@@ -96,9 +96,7 @@ Route::middleware(['auth', 'role'])->group(function () {
     Route::get('/shipments/{id}', [ShipmentController::class, 'show'])->name('shipments.show');
     Route::post('/shipments/{id}/status', [ShipmentController::class, 'updateStatus'])->name('shipments.updateStatus');
 
-    Route::get('/admin-panel', function () {
-        return view('admin.panel');
-    })->name('admin.panel');
+    Route::get('/admin-panel', [AdminController::class, 'index'])->name('admin.panel');
 
     /*
     |--------------------------------------------------------------------------
