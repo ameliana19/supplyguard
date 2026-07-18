@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Log;
 
 class PortController extends Controller
 {
+    /**
+     * Service to handle Port data synchronization.
+     */
     protected $portService;
 
     public function __construct(PortService $portService)
@@ -17,12 +20,16 @@ class PortController extends Controller
         $this->portService = $portService;
     }
 
+    /**
+     * Display a listing of the ports with search and filter functionality.
+     */
     public function index(Request $request)
     {
         $search = $request->search;
         $countryFilter = $request->country_id;
 
-        // Redesign: Hanya retrieve data dari database local cache (tidak ada auto-sync di sini)
+        // Mengambil data pelabuhan dengan fitur pencarian dan filter negara
+        // Optimasi Query: Menggunakan paginate() untuk mencegah load seluruh data sekaligus ke memory
         $ports = Port::mainPorts()->with('country')
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
@@ -35,21 +42,31 @@ class PortController extends Controller
                 $query->where('country_id', $countryFilter);
             })
             ->orderBy('id', 'desc')
-            ->get();
+            ->paginate(20)
+            ->withQueryString();
 
-        $countries = Country::orderBy('name')->get();
+        // Optimasi Query: Hanya select id dan nama untuk dropdown filter
+        $countries = Country::select('id', 'name')->orderBy('name', 'asc')->get();
 
         return view('ports.index', compact('ports', 'countries'));
     }
 
+    /**
+     * Show the form for creating a new port.
+     */
     public function create()
     {
-        $countries = Country::orderBy('name')->get();
+        // Optimasi Query: Hanya select id dan nama untuk dropdown form
+        $countries = Country::select('id', 'name')->orderBy('name', 'asc')->get();
         return view('ports.create', compact('countries'));
     }
 
+    /**
+     * Store a newly created port in storage.
+     */
     public function store(Request $request)
     {
+        // Validasi request pembuatan pelabuhan baru
         $validated = $request->validate([
             'country_id' => 'required|exists:countries,id',
             'port_name'  => 'required|string|max:100',
@@ -58,24 +75,38 @@ class PortController extends Controller
             'type'       => 'required|string|max:50',
             'capacity'   => 'required|numeric|min:0',
             'status'     => 'required|in:Open,Busy,Maintenance,Closed',
-            'latitude'   => 'nullable|numeric',
-            'longitude'  => 'nullable|numeric',
+            'latitude'   => 'nullable|numeric|between:-90,90',
+            'longitude'  => 'nullable|numeric|between:-180,180',
         ]);
 
-        Port::create($validated);
+        try {
+            // Proses penyimpanan data ke database
+            Port::create($validated);
 
-        return redirect()->route('ports.index')
-            ->with('success', 'Data port berhasil ditambahkan.');
+            return redirect()->route('ports.index')
+                ->with('success', 'Data pelabuhan berhasil ditambahkan.');
+        } catch (\Exception $e) {
+            Log::error('Error saat menyimpan pelabuhan: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Gagal menambahkan data pelabuhan.');
+        }
     }
 
+    /**
+     * Show the form for editing the specified port.
+     */
     public function edit(Port $port)
     {
-        $countries = Country::orderBy('name')->get();
+        // Optimasi Query: Hanya select id dan nama untuk dropdown form
+        $countries = Country::select('id', 'name')->orderBy('name', 'asc')->get();
         return view('ports.edit', compact('port', 'countries'));
     }
 
+    /**
+     * Update the specified port in storage.
+     */
     public function update(Request $request, Port $port)
     {
+        // Validasi request pembaruan pelabuhan (dengan pengecualian pengecekan kode unik)
         $validated = $request->validate([
             'country_id' => 'required|exists:countries,id',
             'port_name'  => 'required|string|max:100',
@@ -84,38 +115,71 @@ class PortController extends Controller
             'type'       => 'required|string|max:50',
             'capacity'   => 'required|numeric|min:0',
             'status'     => 'required|in:Open,Busy,Maintenance,Closed',
-            'latitude'   => 'nullable|numeric',
-            'longitude'  => 'nullable|numeric',
+            'latitude'   => 'nullable|numeric|between:-90,90',
+            'longitude'  => 'nullable|numeric|between:-180,180',
         ]);
 
-        $port->update($validated);
+        try {
+            // Proses pembaruan data
+            $port->update($validated);
 
-        return redirect()->route('ports.index')
-            ->with('success', 'Data port berhasil diperbarui.');
+            return redirect()->route('ports.index')
+                ->with('success', 'Data pelabuhan berhasil diperbarui.');
+        } catch (\Exception $e) {
+            Log::error('Error saat memperbarui pelabuhan: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Gagal memperbarui data pelabuhan.');
+        }
     }
 
+    /**
+     * Remove the specified port from storage.
+     */
     public function destroy(Port $port)
     {
-        $port->delete();
-        return redirect()->route('ports.index')
-            ->with('success', 'Data port berhasil dihapus.');
+        try {
+            $port->delete();
+            
+            return redirect()->route('ports.index')
+                ->with('success', 'Data pelabuhan berhasil dihapus.');
+        } catch (\Exception $e) {
+            Log::error('Error saat menghapus pelabuhan: ' . $e->getMessage());
+            return redirect()->route('ports.index')
+                ->with('error', 'Gagal menghapus data pelabuhan.');
+        }
     }
 
     // ============================================
     // SYNC DATA PELABUHAN DUNIA (FIXED)
     // ============================================
+    
+    /**
+     * Synchronize port data from external sources.
+     */
     public function sync()
     {
         Log::info('Sync pelabuhan via Web Controller dijalankan');
 
-        $result = $this->portService->syncPorts();
+        try {
+            // Memeriksa ketersediaan data negara sebelum sinkronisasi
+            if (Country::count() === 0) {
+                return redirect()->route('ports.index')
+                    ->with('warning', 'Data negara belum tersedia. Tambahkan negara terlebih dahulu.');
+            }
 
-        if ($result['success']) {
+            $result = $this->portService->syncPorts();
+
+            if (isset($result['success']) && $result['success']) {
+                return redirect()->route('ports.index')
+                    ->with('success', $result['message'] ?? 'Data pelabuhan berhasil disinkronkan.');
+            }
+
             return redirect()->route('ports.index')
-                ->with('success', $result['message']);
-        }
+                ->with('error', $result['message'] ?? 'Gagal menyinkronkan data pelabuhan.');
 
-        return redirect()->route('ports.index')
-            ->with('error', $result['message']);
+        } catch (\Exception $e) {
+            Log::error('Exception saat sinkronisasi pelabuhan: ' . $e->getMessage());
+            return redirect()->route('ports.index')
+                ->with('error', 'Terjadi kesalahan sistem saat menghubungi sumber data.');
+        }
     }
 }
