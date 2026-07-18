@@ -9,42 +9,58 @@ use App\Models\Port;
 use App\Models\Shipment;
 use App\Models\Watchlist;
 use App\Models\RiskScore;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
+    /**
+     * Display the main dashboard with statistics and recent data.
+     */
     public function index()
     {
-        // Real-time statistics
-        $totalCountries = Country::count();
-        $totalNews = Article::count();
-        $totalPorts = Port::mainPorts()->count();
-        $totalShipments = Shipment::count();
-        $totalWatchlist = Watchlist::count();
-        $totalRiskScores = RiskScore::count();
+        try {
+            // Mengambil jumlah agregat secara efisien
+            $totalCountries  = Country::count();
+            $totalNews       = Article::count();
+            $totalPorts      = Port::mainPorts()->count();
+            $totalShipments  = Shipment::count();
+            $totalWatchlist  = Watchlist::count();
+            $totalRiskScores = RiskScore::count();
 
-        // Latest data
-        $latestCountries = Country::latest()->take(5)->get();
-        $latestNews = Article::latest()->take(5)->get();
-        $latestShipments = Shipment::with(['originCountry', 'destinationCountry'])->latest()->take(5)->get();
+            // Memuat sebagian kecil data terbaru untuk UI tanpa me-load seluruh field
+            $latestCountries = Country::select('id', 'name', 'iso2', 'region')->latest()->take(5)->get();
+            $latestNews      = Article::select('id', 'title', 'published_at', 'url')->latest()->take(5)->get();
+            $latestShipments = Shipment::with([
+                'originCountry:id,name', 
+                'destinationCountry:id,name'
+            ])->select('id', 'tracking_number', 'status', 'origin_country_id', 'destination_country_id', 'estimated_departure', 'estimated_arrival')
+              ->latest()
+              ->take(5)
+              ->get();
 
-        // Risk statistics
-        $highRiskCount = RiskScore::where('risk_level', 'High')->count();
-        $mediumRiskCount = RiskScore::where('risk_level', 'Medium')->count();
-        $lowRiskCount = RiskScore::where('risk_level', 'Low')->count();
+            // Mengelompokkan level risiko
+            $highRiskCount   = RiskScore::where('risk_level', 'High')->count();
+            $mediumRiskCount = RiskScore::where('risk_level', 'Medium')->count();
+            $lowRiskCount    = RiskScore::where('risk_level', 'Low')->count();
 
-        return view('dashboard', compact(
-            'totalCountries',
-            'totalNews',
-            'totalPorts',
-            'totalShipments',
-            'totalWatchlist',
-            'totalRiskScores',
-            'latestCountries',
-            'latestNews',
-            'latestShipments',
-            'highRiskCount',
-            'mediumRiskCount',
-            'lowRiskCount'
-        ));
+            return view('dashboard', compact(
+                'totalCountries',
+                'totalNews',
+                'totalPorts',
+                'totalShipments',
+                'totalWatchlist',
+                'totalRiskScores',
+                'latestCountries',
+                'latestNews',
+                'latestShipments',
+                'highRiskCount',
+                'mediumRiskCount',
+                'lowRiskCount'
+            ));
+        } catch (\Exception $e) {
+            Log::error('Dashboard Load Error: ' . $e->getMessage());
+            // Tetap memuat tampilan dasar jika database bermasalah
+            return view('dashboard')->with('error', 'Gagal memuat beberapa data dasbor.');
+        }
     }
 }
