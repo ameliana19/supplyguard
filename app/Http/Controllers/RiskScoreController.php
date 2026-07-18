@@ -9,137 +9,170 @@ use App\Models\Country;
 
 class RiskScoreController extends Controller
 {
+    /**
+     * Display a listing of the risk scores.
+     */
     public function index()
     {
-        // Auto-calculate risk scores for all countries if any are missing
-        if (RiskScore::count() < Country::count()) {
-            $countries = Country::all();
-            foreach ($countries as $country) {
-                RiskScore::calculateAndSave($country->id);
+        try {
+            // Auto-calculate risk scores for all countries if any are missing
+            if (RiskScore::count() < Country::count()) {
+                $countries = Country::select('id')->get();
+                foreach ($countries as $country) {
+                    RiskScore::calculateAndSave($country->id);
+                }
             }
+        } catch (\Exception $e) {
+            Log::error('Error saat auto-calculate skor risiko: ' . $e->getMessage());
+            // Lanjutkan eksekusi meskipun auto-calculate gagal
         }
 
+        // Optimasi: Membatasi data per halaman menggunakan paginate
         $riskScores = RiskScore::with('country')->latest()->paginate(15);
         return view('risk-score.index', compact('riskScores'));
     }
 
+    /**
+     * Show the form for creating a new risk score.
+     */
     public function create()
     {
-        $countries = Country::all();
+        // Optimasi Query: Hanya mengambil id dan nama untuk keperluan form dropdown
+        $countries = Country::select('id', 'name')->orderBy('name', 'asc')->get();
         return view('risk-score.create', compact('countries'));
     }
 
+    /**
+     * Store a newly created risk score in storage.
+     */
     public function store(Request $request)
     {
+        // Validasi input data risiko
         $data = $request->validate([
-            'country_id' => 'required|exists:countries,id',
-            'weather_score' => 'required|numeric|min:0|max:100',
+            'country_id'     => 'required|exists:countries,id',
+            'weather_score'  => 'required|numeric|min:0|max:100',
             'currency_score' => 'required|numeric|min:0|max:100',
-            'economy_score' => 'required|numeric|min:0|max:100',
-            'port_score' => 'required|numeric|min:0|max:100',
+            'economy_score'  => 'required|numeric|min:0|max:100',
+            'port_score'     => 'required|numeric|min:0|max:100',
         ]);
 
-        // ✅ RATA-RATA (biar 0–100)
-        $total = (
-            $data['weather_score'] +
-            $data['currency_score'] +
-            $data['economy_score'] +
-            $data['port_score']
-        ) / 4;
+        try {
+            $total = $this->calculateTotalScore($data);
+            $risk = $this->determineRiskLevel($total);
 
-        // REDESIGN THRESHOLDS
-        if ($total >= 42.00) {
-            $risk = "High";
-        } elseif ($total >= 30.00) {
-            $risk = "Medium";
-        } else {
-            $risk = "Low";
+            RiskScore::updateOrCreate(
+                ['country_id' => $data['country_id']],
+                [
+                    'weather_score'  => $data['weather_score'],
+                    'currency_score' => $data['currency_score'],
+                    'economy_score'  => $data['economy_score'],
+                    'port_score'     => $data['port_score'],
+                    'total_score'    => $total,
+                    'risk_level'     => $risk,
+                ]
+            );
+
+            return redirect()->route('risk-score.index')
+                ->with('success', 'Data tingkat risiko berhasil ditambahkan.');
+        } catch (\Exception $e) {
+            Log::error('Error saat menyimpan tingkat risiko: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Gagal menambahkan tingkat risiko.');
         }
-
-        RiskScore::updateOrCreate(
-            ['country_id' => $data['country_id']],
-            [
-                'weather_score' => $data['weather_score'],
-                'currency_score' => $data['currency_score'],
-                'economy_score' => $data['economy_score'],
-                'port_score' => $data['port_score'],
-                'total_score' => $total,
-                'risk_level' => $risk,
-            ]
-        );
-
-        return redirect()->route('risk-score.index')
-            ->with('success', 'Data Risk Score berhasil ditambahkan.');
     }
 
+    /**
+     * Show the form for editing the specified risk score.
+     */
     public function edit($id)
     {
-        $riskScore = RiskScore::findOrFail($id);
-        $countries = Country::all();
+        try {
+            $riskScore = RiskScore::findOrFail($id);
+            // Optimasi Query: Hanya mengambil id dan nama untuk dropdown
+            $countries = Country::select('id', 'name')->orderBy('name', 'asc')->get();
 
-        return view('risk-score.edit', compact('riskScore', 'countries'));
+            return view('risk-score.edit', compact('riskScore', 'countries'));
+        } catch (\Exception $e) {
+            Log::error('Data tingkat risiko tidak ditemukan: ' . $e->getMessage());
+            return redirect()->route('risk-score.index')
+                ->with('error', 'Data tingkat risiko tidak ditemukan.');
+        }
     }
 
+    /**
+     * Update the specified risk score in storage.
+     */
     public function update(Request $request, $id)
     {
+        // Validasi input pembaruan data risiko
         $data = $request->validate([
-            'country_id' => 'required|exists:countries,id',
-            'weather_score' => 'required|numeric|min:0|max:100',
+            'country_id'     => 'required|exists:countries,id',
+            'weather_score'  => 'required|numeric|min:0|max:100',
             'currency_score' => 'required|numeric|min:0|max:100',
-            'economy_score' => 'required|numeric|min:0|max:100',
-            'port_score' => 'required|numeric|min:0|max:100',
+            'economy_score'  => 'required|numeric|min:0|max:100',
+            'port_score'     => 'required|numeric|min:0|max:100',
         ]);
 
-        $riskScore = RiskScore::findOrFail($id);
+        try {
+            $riskScore = RiskScore::findOrFail($id);
 
-        // ✅ RATA-RATA
-        $total = (
-            $data['weather_score'] +
-            $data['currency_score'] +
-            $data['economy_score'] +
-            $data['port_score']
-        ) / 4;
+            $total = $this->calculateTotalScore($data);
+            $risk = $this->determineRiskLevel($total);
 
-        // REDESIGN THRESHOLDS
-        if ($total >= 42.00) {
-            $risk = "High";
-        } elseif ($total >= 30.00) {
-            $risk = "Medium";
-        } else {
-            $risk = "Low";
+            $riskScore->update([
+                'country_id'     => $data['country_id'],
+                'weather_score'  => $data['weather_score'],
+                'currency_score' => $data['currency_score'],
+                'economy_score'  => $data['economy_score'],
+                'port_score'     => $data['port_score'],
+                'total_score'    => $total,
+                'risk_level'     => $risk,
+            ]);
+
+            return redirect()->route('risk-score.index')
+                ->with('success', 'Data tingkat risiko berhasil diperbarui.');
+        } catch (\Exception $e) {
+            Log::error('Error saat memperbarui tingkat risiko: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Gagal memperbarui data tingkat risiko.');
         }
-
-        $riskScore->update([
-            'country_id' => $data['country_id'],
-            'weather_score' => $data['weather_score'],
-            'currency_score' => $data['currency_score'],
-            'economy_score' => $data['economy_score'],
-            'port_score' => $data['port_score'],
-            'total_score' => $total,
-            'risk_level' => $risk,
-        ]);
-
-        return redirect()->route('risk-score.index')
-            ->with('success', 'Data berhasil diperbarui.');
     }
 
+    /**
+     * Remove the specified risk score from storage.
+     */
     public function destroy($id)
     {
-        RiskScore::destroy($id);
+        try {
+            $riskScore = RiskScore::findOrFail($id);
+            $riskScore->delete();
 
-        return redirect()->route('risk-score.index')
-            ->with('success', 'Data berhasil dihapus.');
+            return redirect()->route('risk-score.index')
+                ->with('success', 'Data tingkat risiko berhasil dihapus.');
+        } catch (\Exception $e) {
+            Log::error('Error saat menghapus tingkat risiko: ' . $e->getMessage());
+            return redirect()->route('risk-score.index')
+                ->with('error', 'Gagal menghapus tingkat risiko.');
+        }
     }
 
     // =========================================
     // HITUNG RISIKO OTOMATIS BERDASARKAN DATA
     // =========================================
+    
+    /**
+     * Calculate risk scores automatically for all countries based on raw data.
+     */
     public function calculate()
     {
         Log::info('Hitung risiko otomatis dijalankan');
 
         try {
-            $countries = Country::all();
+            // Memeriksa ketersediaan data negara sebelum kalkulasi
+            if (Country::count() === 0) {
+                return redirect()->route('risk-score.index')
+                    ->with('warning', 'Data negara belum tersedia. Tambahkan negara terlebih dahulu.');
+            }
+
+            $countries = Country::select('id', 'name')->get();
             $count = 0;
             $updated = 0;
             $created = 0;
@@ -150,9 +183,9 @@ class RiskScoreController extends Controller
                     // Gunakan method calculateAndSave dari model
                     $riskScore = RiskScore::calculateAndSave($country->id);
 
-                    if ($riskScore->wasRecentlyCreated) {
+                    if ($riskScore && $riskScore->wasRecentlyCreated) {
                         $created++;
-                    } else {
+                    } else if ($riskScore) {
                         $updated++;
                     }
 
@@ -167,12 +200,39 @@ class RiskScoreController extends Controller
             Log::info("Hitung risiko selesai: {$count} diproses, {$created} baru, {$updated} diupdate, {$failed} gagal");
 
             return redirect()->route('risk-score.index')
-                ->with('success', "Berhasil menghitung risiko untuk {$count} negara. ({$created} baru, {$updated} diupdate, {$failed} gagal)");
+                ->with('success', "Berhasil menghitung risiko untuk {$count} negara. ({$created} baru, {$updated} diperbarui, {$failed} gagal)");
 
         } catch (\Exception $e) {
             Log::error('Exception saat hitung risiko: ' . $e->getMessage());
             return redirect()->route('risk-score.index')
-                ->with('error', 'Gagal menghitung risiko. Error: ' . $e->getMessage());
+                ->with('error', 'Gagal menghitung risiko sistem secara masal.');
+        }
+    }
+
+    /**
+     * Helper: Calculate the average of all individual risk scores.
+     */
+    private function calculateTotalScore(array $data)
+    {
+        return (
+            $data['weather_score'] +
+            $data['currency_score'] +
+            $data['economy_score'] +
+            $data['port_score']
+        ) / 4;
+    }
+
+    /**
+     * Helper: Determine the string category of risk based on total numerical score.
+     */
+    private function determineRiskLevel($totalScore)
+    {
+        if ($totalScore >= 42.00) {
+            return "High";
+        } elseif ($totalScore >= 30.00) {
+            return "Medium";
+        } else {
+            return "Low";
         }
     }
 }
