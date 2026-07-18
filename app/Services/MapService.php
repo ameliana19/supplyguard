@@ -9,10 +9,15 @@ use Illuminate\Support\Facades\Log;
 
 class MapService
 {
+    /**
+     * Get map data optimized for rendering.
+     */
     public function getMapData(): array
     {
         try {
-            $countriesList = Country::with('latestRiskScore')
+            // Optimasi: Hanya ambil kolom yang dibutuhkan, hindari load seluruh tabel
+            $countriesList = Country::with('latestRiskScore:country_id,risk_level,total_score')
+                ->select('id', 'name', 'capital', 'latitude', 'longitude')
                 ->whereNotNull('latitude')
                 ->whereNotNull('longitude')
                 ->get();
@@ -36,7 +41,10 @@ class MapService
                 }
             }
 
+            // Optimasi: Hanya ambil kolom yang dibutuhkan dan batasi relasi negara ke nama saja
             $portsList = Port::mainPorts()
+                ->with('country:id,name')
+                ->select('id', 'port_name', 'port_code', 'city', 'country_id', 'latitude', 'longitude', 'capacity', 'status')
                 ->whereNotNull('latitude')
                 ->whereNotNull('longitude')
                 ->get();
@@ -65,7 +73,14 @@ class MapService
                 }
             }
 
-            $shipments = Shipment::with(['originCountry', 'destinationCountry', 'originPort', 'destinationPort'])
+            // Optimasi: Hanya load shipment yang diperlukan dengan select yang spesifik pada relasi
+            $shipments = Shipment::with([
+                    'originCountry:id,name,latitude,longitude', 
+                    'destinationCountry:id,name,latitude,longitude', 
+                    'originPort:id,port_name,latitude,longitude', 
+                    'destinationPort:id,port_name,latitude,longitude'
+                ])
+                ->select('id', 'tracking_number', 'cargo_type', 'status', 'origin_country_id', 'destination_country_id', 'origin_port_id', 'destination_port_id')
                 ->where('status', '!=', 'Cancelled')
                 ->get()
                 ->map(function ($shipment) {
@@ -95,25 +110,33 @@ class MapService
                 'data' => [
                     'countries' => $countries,
                     'ports' => $ports,
-                    'shipments' => $shipments,
+                    'shipments' => array_values($shipments->toArray()), // Reset array index
                 ]
             ];
         } catch (\Exception $e) {
             Log::error('MapService getMapData Error: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage(), 'data' => []];
+            return ['success' => false, 'message' => 'Terjadi kesalahan saat memproses data peta.', 'data' => []];
         }
     }
 
+    /**
+     * Get basic coordinates for a specific country by name.
+     */
     public function getCountryCoordinates(string $countryName): ?array
     {
         try {
-            $country = Country::where('name', 'like', "%{$countryName}%")->first();
-            // FIXED COORDINATES
+            // Optimasi: Hanya get kolom lat dan lng, gunakan query yang efisien
+            $country = Country::select('latitude', 'longitude')
+                ->where('name', 'like', "%{$countryName}%")
+                ->first();
+                
             if ($country && $country->latitude && $country->longitude) {
                 return ['lat' => $country->latitude, 'lng' => $country->longitude];
             }
+            
             return null;
         } catch (\Exception $e) {
+            Log::error("Error getCountryCoordinates ({$countryName}): " . $e->getMessage());
             return null;
         }
     }
