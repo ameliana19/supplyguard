@@ -19,6 +19,15 @@ class ShipmentService
     public function syncShipments(): array
     {
         try {
+            // Memeriksa ketersediaan data dasar (Negara & Pelabuhan) sebelum sinkronisasi
+            if (Country::count() === 0 || Port::count() === 0) {
+                return [
+                    'success' => false,
+                    'message' => 'Sistem tidak dapat menyinkronkan pengiriman karena data Master Negara atau Pelabuhan belum tersedia.',
+                    'count'   => 0
+                ];
+            }
+
             // Mencoba menarik data dari public API
             $response = Http::timeout(10)->get('https://raw.githubusercontent.com/ameliana19/SupplyGuard/main/shipments.json');
             
@@ -30,6 +39,7 @@ class ShipmentService
             // Fallback jika API eksternal gagal diakses
             if (empty($shipmentsData) || !is_array($shipmentsData)) {
                 $shipmentsData = $this->getMockShipmentDataset();
+                Log::info('Menggunakan Mock Shipment Dataset karena API gagal atau kosong.');
             }
 
             $count = 0;
@@ -60,15 +70,15 @@ class ShipmentService
                     $shipment = Shipment::updateOrCreate(
                         ['tracking_number' => $trackingNumber],
                         [
-                            'container_number' => $data['container_number'] ?? 'CNT-UNKNOWN',
-                            'cargo_type' => $data['cargo_type'] ?? 'General Cargo',
-                            'origin_country_id' => $originCountry->id,
+                            'container_number'       => $data['container_number'] ?? 'CNT-UNKNOWN',
+                            'cargo_type'             => $data['cargo_type'] ?? 'General Cargo',
+                            'origin_country_id'      => $originCountry->id,
                             'destination_country_id' => $destCountry->id,
-                            'origin_port_id' => $originPort ? $originPort->id : null,
-                            'destination_port_id' => $destPort ? $destPort->id : null,
-                            'estimated_departure' => $departureDate,
-                            'estimated_arrival' => $estimatedArrival,
-                            'status' => $data['status'] ?? 'Pending',
+                            'origin_port_id'         => $originPort ? $originPort->id : null,
+                            'destination_port_id'    => $destPort ? $destPort->id : null,
+                            'estimated_departure'    => $departureDate,
+                            'estimated_arrival'      => $estimatedArrival,
+                            'status'                 => $data['status'] ?? 'Pending',
                         ]
                     );
 
@@ -76,9 +86,9 @@ class ShipmentService
                     ShipmentPlanner::updateOrCreate(
                         ['shipment_id' => $shipment->id],
                         [
-                            'title' => "Pengiriman " . $shipment->cargo_type,
-                            'start_date' => $departureDate,
-                            'end_date' => $estimatedArrival,
+                            'title'       => "Pengiriman " . $shipment->cargo_type,
+                            'start_date'  => $departureDate,
+                            'end_date'    => $estimatedArrival,
                             'description' => "Vessel: " . ($data['vessel'] ?? '-') . "\nCarrier: " . ($data['shipping_company'] ?? '-'),
                         ]
                     );
@@ -90,10 +100,10 @@ class ShipmentService
                     foreach ($histories as $h) {
                         ShipmentHistory::create([
                             'shipment_id' => $shipment->id,
-                            'status' => $h['status'],
-                            'location' => $h['location'] . " (Vessel: " . ($data['vessel'] ?? '-') . ", Carrier: " . ($data['shipping_company'] ?? '-') . ")",
-                            'notes' => $h['notes'] ?? 'Status update.',
-                            'event_time' => now()->addDays($h['event_time_offset_days'] ?? 0),
+                            'status'      => $h['status'],
+                            'location'    => $h['location'] . " (Vessel: " . ($data['vessel'] ?? '-') . ", Carrier: " . ($data['shipping_company'] ?? '-') . ")",
+                            'notes'       => $h['notes'] ?? 'Status update.',
+                            'event_time'  => now()->addDays($h['event_time_offset_days'] ?? 0),
                         ]);
                     }
 
@@ -104,7 +114,7 @@ class ShipmentService
             return [
                 'success' => true,
                 'message' => "Berhasil menyinkronkan {$count} data pengiriman dari API.",
-                'count' => $count
+                'count'   => $count
             ];
 
         } catch (\Exception $e) {
@@ -112,7 +122,7 @@ class ShipmentService
             return [
                 'success' => false,
                 'message' => 'Gagal menyinkronkan data pengiriman. Error: ' . $e->getMessage(),
-                'count' => 0
+                'count'   => 0
             ];
         }
     }
