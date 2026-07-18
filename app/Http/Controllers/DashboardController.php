@@ -60,7 +60,20 @@ class DashboardController extends Controller
         } catch (\Exception $e) {
             Log::error('Dashboard Load Error: ' . $e->getMessage());
             // Tetap memuat tampilan dasar jika database bermasalah
-            return view('dashboard')->with('error', 'Gagal memuat beberapa data dasbor.');
+            return view('dashboard', [
+                'totalCountries' => 0,
+                'totalNews' => 0,
+                'totalPorts' => 0,
+                'totalShipments' => 0,
+                'totalWatchlist' => 0,
+                'totalRiskScores' => 0,
+                'latestCountries' => collect(),
+                'latestNews' => collect(),
+                'latestShipments' => collect(),
+                'highRiskCount' => 0,
+                'mediumRiskCount' => 0,
+                'lowRiskCount' => 0,
+            ])->with('error', 'Gagal memuat beberapa data dasbor.');
         }
     }
 }
