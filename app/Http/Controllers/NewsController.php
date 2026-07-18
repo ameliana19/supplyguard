@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Log;
 
 class NewsController extends Controller
 {
+    /**
+     * Service to handle News API operations.
+     */
     protected $newsService;
 
     public function __construct(NewsService $newsService)
@@ -17,6 +20,9 @@ class NewsController extends Controller
         $this->newsService = $newsService;
     }
 
+    /**
+     * Display a listing of the news articles.
+     */
     public function index(Request $request)
     {
         $query = Article::query();
@@ -33,83 +39,147 @@ class NewsController extends Controller
             $query->where('category', $request->category);
         }
 
-        // Redesign: Hanya retrieve data dari database local cache (tidak ada auto-sync di sini)
-        $news = $query->latest()->get();
-        $countries = Country::where('name', 'not like', 'Country %')->orderBy('name', 'asc')->get();
+        // Optimasi Query: Menggunakan paginate alih-alih get() untuk mencegah overload memori
+        $news = $query->latest('published_at')->paginate(15)->withQueryString();
+        
+        // Optimasi Query: Hanya ambil kolom yang dibutuhkan untuk dropdown
+        $countries = Country::where('name', 'not like', 'Country %')
+            ->select('id', 'name')
+            ->orderBy('name', 'asc')
+            ->get();
 
         return view('news.index', compact('news', 'countries'));
     }
 
+    /**
+     * Show the form for creating a new news article.
+     */
     public function create()
     {
         return view('news.create');
     }
 
+    /**
+     * Store a newly created news article in storage.
+     */
     public function store(Request $request)
     {
-        $request->validate([
-            'title' => 'required',
-            'category' => 'required',
-            'published_at' => 'required'
+        // Validasi input data berita
+        $validated = $request->validate([
+            'title'        => 'required|string|max:255',
+            'category'     => 'required|string|max:100',
+            'published_at' => 'required|date'
         ]);
 
-        Article::create($request->only([
-            'title',
-            'category',
-            'published_at'
-        ]));
+        try {
+            Article::create($validated);
 
-        return redirect()->route('news.index')
-            ->with('success', 'Berhasil menambah berita');
+            return redirect()->route('news.index')
+                ->with('success', 'Berhasil menambahkan berita.');
+        } catch (\Exception $e) {
+            Log::error('Error saat menyimpan berita: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Gagal menambahkan berita.');
+        }
     }
 
-    public function edit($id)
-    {
-        $item = Article::findOrFail($id);
-        return view('news.edit', compact('item'));
-    }
-
-    public function update(Request $request, $id)
-    {
-        $article = Article::findOrFail($id);
-        $article->update($request->only([
-            'title',
-            'category',
-            'published_at'
-        ]));
-
-        return redirect()->route('news.index')
-            ->with('success', 'Berhasil update berita');
-    }
-
-    public function destroy($id)
-    {
-        Article::destroy($id);
-        return redirect()->route('news.index')
-            ->with('success', 'Berhasil hapus berita');
-    }
-
+    /**
+     * Display the specified news article.
+     */
     public function show($id)
     {
-        $article = Article::findOrFail($id);
-        return view('news.show', compact('article'));
+        try {
+            $article = Article::findOrFail($id);
+            return view('news.show', compact('article'));
+        } catch (\Exception $e) {
+            Log::error('Berita tidak ditemukan: ' . $e->getMessage());
+            return redirect()->route('news.index')
+                ->with('error', 'Berita tidak ditemukan.');
+        }
+    }
+
+    /**
+     * Show the form for editing the specified news article.
+     */
+    public function edit($id)
+    {
+        try {
+            $item = Article::findOrFail($id);
+            return view('news.edit', compact('item'));
+        } catch (\Exception $e) {
+            Log::error('Berita tidak ditemukan: ' . $e->getMessage());
+            return redirect()->route('news.index')
+                ->with('error', 'Berita tidak ditemukan.');
+        }
+    }
+
+    /**
+     * Update the specified news article in storage.
+     */
+    public function update(Request $request, $id)
+    {
+        // Validasi pembaruan data berita
+        $validated = $request->validate([
+            'title'        => 'required|string|max:255',
+            'category'     => 'required|string|max:100',
+            'published_at' => 'required|date'
+        ]);
+
+        try {
+            $article = Article::findOrFail($id);
+            $article->update($validated);
+
+            return redirect()->route('news.index')
+                ->with('success', 'Berhasil memperbarui berita.');
+        } catch (\Exception $e) {
+            Log::error('Error saat memperbarui berita: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Gagal memperbarui berita.');
+        }
+    }
+
+    /**
+     * Remove the specified news article from storage.
+     */
+    public function destroy($id)
+    {
+        try {
+            $article = Article::findOrFail($id);
+            $article->delete();
+            
+            return redirect()->route('news.index')
+                ->with('success', 'Berhasil menghapus berita.');
+        } catch (\Exception $e) {
+            Log::error('Error saat menghapus berita: ' . $e->getMessage());
+            return redirect()->route('news.index')
+                ->with('error', 'Gagal menghapus berita.');
+        }
     }
 
     // ============================================
     // SYNC BERITA DARI NEWSAPI (FIXED)
     // ============================================
+    
+    /**
+     * Synchronize news data from external News API.
+     */
     public function sync()
     {
         Log::info('Sync berita via Web Controller dijalankan');
 
-        $result = $this->newsService->syncNews();
+        try {
+            $result = $this->newsService->syncNews();
 
-        if ($result['success']) {
+            if (isset($result['success']) && $result['success']) {
+                return redirect()->route('news.index')
+                    ->with('success', $result['message'] ?? 'Berita berhasil disinkronkan.');
+            }
+
             return redirect()->route('news.index')
-                ->with('success', $result['message']);
-        }
+                ->with('error', $result['message'] ?? 'Gagal menyinkronkan berita dari API.');
 
-        return redirect()->route('news.index')
-            ->with('error', $result['message']);
+        } catch (\Exception $e) {
+            Log::error('Exception saat sinkronisasi berita: ' . $e->getMessage());
+            return redirect()->route('news.index')
+                ->with('error', 'Terjadi kesalahan sistem saat menghubungi News API.');
+        }
     }
 }
