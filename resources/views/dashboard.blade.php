@@ -25,7 +25,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted text-uppercase small mb-1 fw-semibold">Total Negara</h6>
-                        <h3 class="mb-0 fw-bold text-dark" id="stat-countries">0</h3>
+                        <h3 class="mb-0 fw-bold text-dark" id="stat-countries">{{ $totalCountries }}</h3>
                     </div>
                     <div class="card-stat-icon primary">
                         <i class="bi bi-globe"></i>
@@ -39,7 +39,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted text-uppercase small mb-1 fw-semibold">Risiko Tinggi</h6>
-                        <h3 class="mb-0 fw-bold text-danger" id="stat-high-risk">0</h3>
+                        <h3 class="mb-0 fw-bold text-danger" id="stat-high-risk">{{ $highRiskCount }}</h3>
                     </div>
                     <div class="card-stat-icon danger">
                         <i class="bi bi-exclamation-triangle-fill"></i>
@@ -53,7 +53,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted text-uppercase small mb-1 fw-semibold">Risiko Sedang</h6>
-                        <h3 class="mb-0 fw-bold text-warning" id="stat-medium-risk">0</h3>
+                        <h3 class="mb-0 fw-bold text-warning" id="stat-medium-risk">{{ $mediumRiskCount }}</h3>
                     </div>
                     <div class="card-stat-icon warning">
                         <i class="bi bi-exclamation-circle-fill"></i>
@@ -67,7 +67,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted text-uppercase small mb-1 fw-semibold">Risiko Rendah</h6>
-                        <h3 class="mb-0 fw-bold text-success" id="stat-low-risk">0</h3>
+                        <h3 class="mb-0 fw-bold text-success" id="stat-low-risk">{{ $lowRiskCount }}</h3>
                     </div>
                     <div class="card-stat-icon success">
                         <i class="bi bi-check-circle-fill"></i>
@@ -85,7 +85,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted text-uppercase small mb-1 fw-semibold">Total Pelabuhan</h6>
-                        <h3 class="mb-0 fw-bold text-dark" id="stat-ports">0</h3>
+                        <h3 class="mb-0 fw-bold text-dark" id="stat-ports">{{ $totalPorts }}</h3>
                     </div>
                     <div class="card-stat-icon info">
                         <i class="bi bi-tsunami"></i>
@@ -99,7 +99,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted text-uppercase small mb-1 fw-semibold">Total Pengiriman</h6>
-                        <h3 class="mb-0 fw-bold text-dark" id="stat-shipments">0</h3>
+                        <h3 class="mb-0 fw-bold text-dark" id="stat-shipments">{{ $totalShipments }}</h3>
                     </div>
                     <div class="card-stat-icon primary">
                         <i class="bi bi-truck"></i>
@@ -113,7 +113,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted text-uppercase small mb-1 fw-semibold">Total Daftar Pantauan</h6>
-                        <h3 class="mb-0 fw-bold text-dark" id="stat-watchlist">0</h3>
+                        <h3 class="mb-0 fw-bold text-dark" id="stat-watchlist">{{ $totalWatchlist }}</h3>
                     </div>
                     <div class="card-stat-icon" style="background: rgba(111, 66, 193, 0.1); color: #6f42c1;">
                         <i class="bi bi-star-fill"></i>
