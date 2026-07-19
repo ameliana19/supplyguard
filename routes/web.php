@@ -40,10 +40,17 @@ Route::any('/logout', [LoginController::class, 'logout'])->name('logout');
 | AUTHENTICATED WEB & API ROUTES
 |--------------------------------------------------------------------------
 */
+Route::get('/', function () {
+    if (\Illuminate\Support\Facades\Auth::check()) {
+        return redirect()->route('dashboard');
+    }
+    return view('landing');
+})->name('landing');
+
 Route::middleware(['auth', 'role'])->group(function () {
 
     // Web Pages
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Country Importers / Exporters (WAJIB di atas resource)
     Route::get('/countries/import-api', [CountryController::class, 'importFromApi'])->name('countries.importApi');

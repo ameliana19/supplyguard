@@ -16,7 +16,7 @@ class MapService
     {
         try {
             // Optimasi: Hanya ambil kolom yang dibutuhkan, hindari load seluruh tabel
-            $countriesList = Country::with('latestRiskScore:country_id,risk_level,total_score')
+            $countriesList = Country::with('latestRiskScore')
                 ->select('id', 'name', 'capital', 'latitude', 'longitude')
                 ->whereNotNull('latitude')
                 ->whereNotNull('longitude')
