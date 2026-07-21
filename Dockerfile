@@ -63,9 +63,7 @@ fi\n\
 php artisan migrate --force\n\
 \n\
 # Optimasi caching untuk production\n\
-php artisan config:cache\n\
-php artisan route:cache\n\
-php artisan view:cache\n\
+php artisan optimize\n\
 \n\
 # Perbaiki permission agar FPM (www-data) bisa menulis ke storage\n\
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache\n\
