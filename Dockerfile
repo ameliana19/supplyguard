@@ -17,8 +17,9 @@ RUN apt-get update && apt-get install -y \
 
 # Pastikan hanya ada SATU MPM yang aktif (prefork adalah bawaan php-apache)
 RUN a2dismod mpm_event mpm_worker mpm_prefork || true \
-    && rm -f /etc/apache2/mods-enabled/mpm_*.load \
-    && rm -f /etc/apache2/mods-enabled/mpm_*.conf \
+    && a2disconf mpm_event mpm_worker mpm_prefork || true \
+    && rm -f /etc/apache2/mods-enabled/mpm_* \
+    && rm -f /etc/apache2/mods-available/mpm_* \
     && a2enmod mpm_prefork
 
 # Install ekstensi PHP untuk Laravel
@@ -26,7 +27,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 
 # Aktifkan mod_rewrite Apache
-RUN a2enmod rewrite
+RUN a2enmod rewrite || true
 
 # Konfigurasi DocumentRoot
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
