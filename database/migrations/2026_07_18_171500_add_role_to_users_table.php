@@ -20,31 +20,48 @@ return new class extends Migration
         }
 
         // Set existing Admin user role to administrator
-        $admin = User::where('email', 'suciameliana19@gmail.com')->first();
+        \Illuminate\Support\Facades\DB::table('users')->where('email', 'suciameliana19@gmail.com')->update(['role' => 'administrator']);
+        
+        $admin = \Illuminate\Support\Facades\DB::table('users')->where('email', 'suciameliana19@gmail.com')->first();
         if ($admin) {
-            $admin->update(['role' => 'administrator']);
-            if ($admin->profile) {
-                $admin->profile->update(['role' => 'administrator']);
-            }
+            \Illuminate\Support\Facades\DB::table('profiles')->where('user_id', $admin->id)->update(['role' => 'administrator']);
         }
 
         // Create the new User user
-        $user = User::firstOrCreate(
-            ['email' => 'user@gmail.com'],
-            [
+        $user = \Illuminate\Support\Facades\DB::table('users')->where('email', 'user@gmail.com')->first();
+        
+        if (!$user) {
+            $userId = \Illuminate\Support\Facades\DB::table('users')->insertGetId([
                 'name' => 'Pengguna',
+                'email' => 'user@gmail.com',
                 'password' => Hash::make('12345'),
                 'role' => 'user',
-            ]
-        );
-        
-        if ($user->profile) {
-            $user->profile->update(['role' => 'user']);
-        } else {
-            $user->profile()->create([
-                'full_name' => 'Pengguna',
-                'role' => 'user'
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
+
+            \Illuminate\Support\Facades\DB::table('profiles')->insert([
+                'user_id' => $userId,
+                'full_name' => 'Pengguna',
+                'role' => 'user',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } else {
+            \Illuminate\Support\Facades\DB::table('users')->where('id', $user->id)->update(['role' => 'user']);
+            
+            $profile = \Illuminate\Support\Facades\DB::table('profiles')->where('user_id', $user->id)->first();
+            if ($profile) {
+                \Illuminate\Support\Facades\DB::table('profiles')->where('user_id', $user->id)->update(['role' => 'user']);
+            } else {
+                \Illuminate\Support\Facades\DB::table('profiles')->insert([
+                    'user_id' => $user->id,
+                    'full_name' => $user->name,
+                    'role' => 'user',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
         }
     }
 
