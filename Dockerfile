@@ -53,6 +53,12 @@ RUN echo '#!/bin/bash\n\
 # Ganti <PORT> di konfigurasi nginx dengan $PORT Railway\n\
 sed -i "s/<PORT>/$PORT/g" /etc/nginx/sites-available/default\n\
 \n\
+# Hapus cache bawaan (jika ada) sebelum Laravel menyentuh database\n\
+php artisan config:clear\n\
+php artisan cache:clear\n\
+php artisan route:clear\n\
+php artisan view:clear\n\
+\n\
 # Pastikan APP_KEY tersedia\n\
 if [ -z "$APP_KEY" ]; then\n\
     echo "APP_KEY is missing. Generating one..."\n\
