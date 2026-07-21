@@ -13,6 +13,15 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    protected static function booted()
+    {
+        static::saved(function ($user) {
+            if ($user->relationLoaded('profile') && $user->profile) {
+                $user->profile()->save($user->profile);
+            }
+        });
+    }
+
     /**
      * The attributes that are mass assignable.
      *
@@ -136,11 +145,17 @@ class User extends Authenticatable
     private function getOrCreateProfile()
     {
         if (!$this->relationLoaded('profile') || !$this->profile) {
-            $profile = $this->profile()->firstOrCreate([
-                'user_id' => $this->id
-            ], [
-                'full_name' => $this->name
-            ]);
+            if ($this->exists) {
+                $profile = $this->profile()->firstOrCreate([
+                    'user_id' => $this->id
+                ], [
+                    'full_name' => $this->name
+                ]);
+            } else {
+                $profile = new Profile([
+                    'full_name' => $this->name
+                ]);
+            }
             $this->setRelation('profile', $profile);
         }
         return $this->profile;
