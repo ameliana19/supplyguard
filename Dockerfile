@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y \
 
 # Pastikan hanya ada SATU MPM yang aktif (prefork adalah bawaan php-apache)
 # Matikan event dan worker jika sempat terinstal oleh dependensi lain
-RUN rm -f /etc/apache2/mods-enabled/mpm_* \
+RUN a2dismod mpm_event mpm_worker mpm_prefork || true \
+    && rm -f /etc/apache2/mods-enabled/mpm_* \
     && a2enmod mpm_prefork
 
 # Install ekstensi PHP untuk Laravel
