@@ -48,7 +48,7 @@ RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 # Buat script startup
 RUN echo '#!/bin/bash\n\
 # Ganti <PORT> di konfigurasi nginx dengan $PORT Railway\n\
-sed -i "s/<PORT>/\${PORT:-80}/g" /etc/nginx/sites-available/default\n\
+sed -i "s/<PORT>/$PORT/g" /etc/nginx/sites-available/default\n\
 \n\
 # Jalankan migration\n\
 php artisan migrate --force\n\
