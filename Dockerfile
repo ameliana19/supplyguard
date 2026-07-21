@@ -27,8 +27,8 @@ ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# PENTING UNTUK RAILWAY: Apache harus listen ke environment variable $PORT, bukan selalu port 80
-RUN sed -i 's/80/${PORT:-80}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
+# PENTING UNTUK RAILWAY: Penggantian port tidak boleh dilakukan saat build (karena $PORT kosong).
+# Kita memindahkannya ke dalam start.sh agar dieksekusi saat runtime.
 
 # Set working directory
 WORKDIR /var/www/html
@@ -52,9 +52,10 @@ RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Gunakan script entrypoint untuk memastikan migration berjalan sebelum Apache start
 # tanpa menimpa default CMD apache2-foreground
-RUN echo '#!/bin/bash\n\
-php artisan migrate --force\n\
-exec apache2-foreground\n\
-' > /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
+RUN echo '#!/bin/bash' > /usr/local/bin/start.sh \
+    && echo 'sed -i "s/80/\${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf' >> /usr/local/bin/start.sh \
+    && echo 'php artisan migrate --force' >> /usr/local/bin/start.sh \
+    && echo 'exec apache2-foreground' >> /usr/local/bin/start.sh \
+    && chmod +x /usr/local/bin/start.sh
 
 CMD ["/usr/local/bin/start.sh"]
