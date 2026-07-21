@@ -1,0 +1,11 @@
+.git
+.gitattributes
+.gitignore
+.phpunit.result.cache
+node_modules
+vendor
+.env
+.env.backup
+phpunit.xml
+scratch/
+brain/
