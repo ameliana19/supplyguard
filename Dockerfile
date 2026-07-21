@@ -53,11 +53,13 @@ RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 # Gunakan script entrypoint untuk memastikan migration berjalan sebelum Apache start
 # tanpa menimpa default CMD apache2-foreground
 RUN echo '#!/bin/bash' > /usr/local/bin/start.sh \
-    && echo 'echo "=== CHECK RUNTIME MPM ==="' >> /usr/local/bin/start.sh \
-    && echo 'apache2ctl -M | grep mpm' >> /usr/local/bin/start.sh \
-    && echo 'echo "=== CHECK ENABLED MODULE ==="' >> /usr/local/bin/start.sh \
-    && echo 'ls -la /etc/apache2/mods-enabled | grep mpm' >> /usr/local/bin/start.sh \
-    && echo 'echo "=== CHECK CONFIG ==="' >> /usr/local/bin/start.sh \
+    && echo 'echo "===== RUNTIME APACHE CHECK ====="' >> /usr/local/bin/start.sh \
+    && echo 'apache2ctl -M' >> /usr/local/bin/start.sh \
+    && echo 'echo "===== ENABLED MODULE ====="' >> /usr/local/bin/start.sh \
+    && echo 'ls -la /etc/apache2/mods-enabled/' >> /usr/local/bin/start.sh \
+    && echo 'echo "===== AVAILABLE MODULE ====="' >> /usr/local/bin/start.sh \
+    && echo 'ls -la /etc/apache2/mods-available/' >> /usr/local/bin/start.sh \
+    && echo 'echo "===== APACHE CONFIG TEST ====="' >> /usr/local/bin/start.sh \
     && echo 'apache2ctl configtest' >> /usr/local/bin/start.sh \
     && echo 'sed -i "s/80/\${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf' >> /usr/local/bin/start.sh \
     && echo 'php artisan migrate --force' >> /usr/local/bin/start.sh \
