@@ -28,7 +28,7 @@ class DashboardController extends Controller
             $totalRiskScores = RiskScore::count();
 
             // Memuat sebagian kecil data terbaru untuk UI tanpa me-load seluruh field
-            $latestCountries = Country::select('id', 'name', 'iso2', 'region')->latest()->take(5)->get();
+            $latestCountries = Country::select('id', 'name', 'code', 'region')->latest()->take(5)->get();
             $latestNews      = Article::select('id', 'title', 'published_at', 'url')->latest()->take(5)->get();
             $latestShipments = Shipment::with([
                 'originCountry:id,name', 
