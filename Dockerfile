@@ -58,4 +58,25 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start.sh \
     && echo 'exec apache2-foreground' >> /usr/local/bin/start.sh \
     && chmod +x /usr/local/bin/start.sh
 
+# --- FINAL MPM CLEANUP & VALIDATION ---
+# Audit dan hapus secara fisik semua jejak mpm_event dan mpm_worker
+# dari SELURUH folder konfigurasi Apache untuk memastikan hanya prefork yang bertahan.
+RUN rm -f /etc/apache2/mods-enabled/mpm_event* \
+    && rm -f /etc/apache2/mods-enabled/mpm_worker* \
+    && rm -f /etc/apache2/mods-available/mpm_event* \
+    && rm -f /etc/apache2/mods-available/mpm_worker* \
+    && rm -f /etc/apache2/conf-enabled/mpm_event* \
+    && rm -f /etc/apache2/conf-enabled/mpm_worker* \
+    && rm -f /etc/apache2/conf-available/mpm_event* \
+    && rm -f /etc/apache2/conf-available/mpm_worker* \
+    && sed -i '/mpm_event/d' /etc/apache2/apache2.conf \
+    && sed -i '/mpm_worker/d' /etc/apache2/apache2.conf
+
+# Validasi ketat di akhir build: harus memunculkan 'mpm_prefork_module' dan 'Syntax OK'
+RUN echo "=== DAFTAR MPM AKTIF ===" \
+    && apache2ctl -M | grep mpm \
+    && echo "=== TEST KONFIGURASI ===" \
+    && apache2ctl configtest
+
+
 CMD ["/usr/local/bin/start.sh"]
