@@ -65,6 +65,24 @@ if [ -z "$APP_KEY" ]; then\n\
     php artisan key:generate --force\n\
 fi\n\
 \n\
+# Tunggu hingga database MySQL benar-benar siap (retry loop)\n\
+php -r "\n\
+\$max = 20;\n\
+\$i = 0;\n\
+while(\$i < \$max) {\n\
+    try {\n\
+        new PDO(\'mysql:host=\' . getenv(\'DB_HOST\') . \';port=\' . getenv(\'DB_PORT\'), getenv(\'DB_USERNAME\'), getenv(\'DB_PASSWORD\'));\n\
+        echo \'Database connected!\\n\';\n\
+        exit(0);\n\
+    } catch (Exception \$e) {\n\
+        echo \'Waiting for DB...\\n\';\n\
+        sleep(2);\n\
+        \$i++;\n\
+    }\n\
+}\n\
+exit(1);\n\
+" || { echo "Database timeout!"; exit 1; }\n\
+\n\
 # Jalankan migration dengan log jika gagal\n\
 php artisan migrate --force || { echo "Migration failed!"; exit 1; }\n\
 \n\
