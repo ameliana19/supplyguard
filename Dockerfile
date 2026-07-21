@@ -34,11 +34,11 @@ RUN ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default ||
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install dependensi PHP
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+# Install dependensi PHP dengan aman untuk production
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts
 
 # Install & Build frontend (Vite)
-RUN npm install
+RUN npm ci
 RUN npm run build
 
 # Atur permission (www-data adalah user default nginx dan php-fpm di Debian)
@@ -65,11 +65,14 @@ if [ -z "$APP_KEY" ]; then\n\
     php artisan key:generate --force\n\
 fi\n\
 \n\
-# Jalankan migration\n\
-php artisan migrate --force\n\
+# Jalankan migration dengan log jika gagal\n\
+php artisan migrate --force || { echo "Migration failed!"; exit 1; }\n\
 \n\
 # Optimasi caching untuk production\n\
 php artisan optimize\n\
+\n\
+# Buat symlink storage\n\
+php artisan storage:link || true\n\
 \n\
 # Perbaiki permission agar FPM (www-data) bisa menulis ke storage\n\
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache\n\
