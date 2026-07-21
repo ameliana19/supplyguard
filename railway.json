@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "php artisan migrate --force && /assets/scripts/start.sh"
+    "startCommand": "/usr/local/bin/start.sh"
   }
 }
