@@ -15,34 +15,12 @@ RUN apt-get update && apt-get install -y \
     nodejs \
     npm
 
-# Hapus semua modul MPM dari enabled dan available
-RUN rm -f /etc/apache2/mods-enabled/mpm_* \
-    && rm -f /etc/apache2/mods-available/mpm_*
-
-# Buat konfigurasi Apache baru yang hanya menggunakan mpm_prefork
-RUN echo "LoadModule mpm_prefork_module /usr/lib/apache2/modules/mod_mpm_prefork.so" > /etc/apache2/mods-enabled/mpm_prefork.load \
-    && echo "<IfModule mpm_prefork_module>\n\
-    StartServers             5\n\
-    MinSpareServers          5\n\
-    MaxSpareServers         10\n\
-    MaxRequestWorkers      150\n\
-    MaxConnectionsPerChild   0\n\
-</IfModule>" > /etc/apache2/mods-enabled/mpm_prefork.conf
-
-# Tambahkan pengecekan saat build untuk memastikan HANYA mpm_prefork yang termuat
-RUN MPM_COUNT=$(apache2ctl -M 2>/dev/null | grep -i mpm | wc -l) \
-    && PREFORK_COUNT=$(apache2ctl -M 2>/dev/null | grep -i mpm_prefork | wc -l) \
-    && if [ "$MPM_COUNT" -ne 1 ] || [ "$PREFORK_COUNT" -ne 1 ]; then \
-       echo "Error: Terdeteksi lebih dari satu MPM atau mpm_prefork gagal dimuat!"; \
-       apache2ctl -M; exit 1; \
-       fi
-
 # Install ekstensi PHP untuk Laravel
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 
 # Aktifkan mod_rewrite Apache
-RUN a2enmod rewrite || true
+RUN a2enmod rewrite
 
 # Konfigurasi DocumentRoot
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
